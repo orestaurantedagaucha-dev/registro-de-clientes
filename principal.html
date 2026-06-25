@@ -1,0 +1,348 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <title>Sistema de Pedidos e Clientes - Banco de Dados</title>
+    <style>
+        /* Estilos da Interface Web */
+        body { 
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
+            padding: 40px; 
+            background: #e9ecef; 
+            margin: 0;
+        }
+        .container {
+            max-width: 900px;
+            margin: auto;
+            display: flex;
+            gap: 20px;
+        }
+        .panel { 
+            flex: 1;
+            background: white; 
+            padding: 25px; 
+            border-radius: 12px; 
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+        }
+        h2 { color: #333; margin-top: 0; border-bottom: 2px solid #000; padding-bottom: 10px; }
+        h3 { color: #555; margin-top: 0; margin-bottom: 15px; border-bottom: 1px solid #ccc; padding-bottom: 5px;}
+        
+        label { display: block; margin-bottom: 5px; font-weight: bold; color: #555; font-size: 0.9em; }
+        input[type="text"], textarea { 
+            width: 100%; 
+            margin-bottom: 15px; 
+            padding: 10px; 
+            box-sizing: border-box; 
+            border: 1px solid #ccc; 
+            border-radius: 6px;
+            font-size: 15px;
+        }
+        
+        /* Grupo de busca rápida */
+        .search-group {
+            display: flex;
+            gap: 10px;
+            background: #e2f0d9;
+            padding: 10px;
+            border-radius: 6px;
+            margin-bottom: 15px;
+        }
+        .search-group input { margin-bottom: 0; }
+        .search-group button { width: auto; padding: 10px 15px; font-size: 14px; background: #007bff; }
+        .search-group button:hover { background: #0056b3; }
+
+        .checkbox-group {
+            margin-bottom: 15px;
+            display: flex;
+            gap: 20px;
+            background: #f8f9fa;
+            padding: 10px;
+            border-radius: 6px;
+        }
+        .checkbox-group label {
+            display: inline-flex;
+            align-items: center;
+            cursor: pointer;
+            font-weight: normal;
+        }
+        .checkbox-group input { width: auto; margin-right: 8px; margin-bottom: 0; }
+
+        button { 
+            width: 100%; 
+            padding: 12px; 
+            background: #28a745; 
+            color: #fff; 
+            border: none; 
+            cursor: pointer; 
+            font-weight: bold; 
+            font-size: 16px;
+            border-radius: 6px;
+            transition: background 0.3s;
+        }
+        button:hover { background: #218838; }
+        .btn-secondary { background: #6c757d; margin-top: 5px; }
+        .btn-secondary:hover { background: #5a6268; }
+
+        /* CONFIGURAÇÃO DE IMPRESSÃO */
+        #cupom-saida { display: none; }
+
+        @media print {
+            @page { size: 80mm auto; margin: 0; }
+            html, body { background: #fff; margin: 0 !important; padding: 0 !important; }
+            .container { display: none !important; }
+            #cupom-saida { 
+                display: block !important;
+                width: 72mm; 
+                margin: 0 auto;
+                padding: 10px 0 30px 0; 
+                color: #000 !important;
+            }
+            .item { display: block; width: 100%; margin-bottom: 10px; page-break-inside: avoid; }
+            .label { font-size: 14pt; font-weight: normal; display: block; text-transform: uppercase; }
+            .conteudo { font-size: 14pt; font-weight: bold; display: block; white-space: pre-wrap; word-wrap: break-word; }
+            .status-impressao { font-size: 16pt; font-weight: 900; border: 2px solid #000; text-align: center; padding: 5px; margin: 10px 0; text-transform: uppercase; }
+            .box-valor { margin-top: 15px; padding-top: 10px; border-top: 1px dashed #000; text-align: right; page-break-inside: avoid; }
+            .txt-valor { font-size: 18pt; font-weight: 900; }
+            .spacer { height: 30px; display: block; }
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    
+    <div class="panel">
+        <h2>Clientes</h2>
+        
+        <h3>Cadastrar Novo / Atualizar</h3>
+        <label for="cad_telefone">Telefone (Apenas números):</label>
+        <input type="text" id="cad_telefone" placeholder="Ex: 11999998888">
+        
+        <label for="cad_nome">Nome do Cliente:</label>
+        <input type="text" id="cad_nome" placeholder="Ex: JOÃO DA SILVA">
+        
+        <label for="cad_endereco">Endereço Completo:</label>
+        <textarea id="cad_endereco" placeholder="Rua, Número, Bairro, Cidade..." rows="3"></textarea>
+        
+        <button onclick="salvarCliente()">SALVAR NO BANCO</button>
+    </div>
+
+    <div class="panel">
+        <h2>Pedido Sweda SI-250</h2>
+        
+        <div class="search-group">
+            <input type="text" id="busca_telefone" placeholder="Buscar Telefone no Banco...">
+            <button onclick="buscarCliente()">BUSCAR</button>
+        </div>
+
+        <label for="nome">Nome do Cliente:</label>
+        <input type="text" id="nome" placeholder="Nome do cliente">
+        
+        <label for="endereco">Endereço:</label>
+        <textarea id="endereco" placeholder="Endereço de entrega" rows="3"></textarea>
+        
+        <label for="telefone">Telefone:</label>
+        <input type="text" id="telefone" placeholder="Telefone de contato">
+        
+        <label for="valor">Valor Total (R$):</label>
+        <input type="text" id="valor" placeholder="0,00">
+
+        <label>Status do Pagamento:</label>
+        <div class="checkbox-group">
+            <label><input type="radio" name="status_pago" id="chk_pago"> PAGO</label>
+            <label><input type="radio" name="status_pago" id="chk_cobrar"> COBRAR NO LOCAL</label>
+        </div>
+        
+        <button onclick="imprimir()">IMPRIMIR CUPOM</button>
+        <button class="btn-secondary" onclick="limparFormularioPedido()">LIMPAR CAMPOS</button>
+    </div>
+</div>
+
+<div id="cupom-saida">
+    <div style="text-align: center; font-weight: bold; margin-bottom: 15px; border-bottom: 1px solid #000; padding-bottom: 5px; font-size: 14pt;">
+        COMPROVANTE DE PEDIDO
+    </div>
+
+    <div id="p_status_box" class="status-impressao" style="display:none;">
+        <span id="p_status_texto"></span>
+    </div>
+
+    <div class="item">
+        <span class="label">Cliente:</span>
+        <span class="conteudo" id="p_nome"></span>
+    </div>
+    
+    <div class="item" id="div_p_endereco">
+        <span class="label">Endereço:</span>
+        <span class="conteudo" id="p_endereco"></span>
+    </div>
+
+    <div class="item" id="div_p_telefone">
+        <span class="label">Telefone:</span>
+        <span class="conteudo" id="p_telefone"></span>
+    </div>
+
+    <div class="box-valor">
+        <span class="label">TOTAL:</span>
+        <span class="txt-valor">R$ <span id="p_valor"></span></span>
+    </div>
+
+    <div class="spacer"></div>
+    <div style="text-align: center; font-size: 10pt; font-weight: bold;">*** Fim do Cupom ***</div>
+    <div class="spacer"></div>
+</div>
+
+<script>
+    // --- INSIRA SUAS CREDENCIAIS DO SUPABASE AQUI ---
+    const SUPABASE_URL = "https://gizdpqlfwnbquccseovh.supabase.co/rest/v1/";
+    const SUPABASE_KEY = "sb_publishable_k0-rlWllOOwxkLeufMRprA_LBYE7gbz";
+
+    const headers = {
+        "apikey": SUPABASE_KEY,
+        "Authorization": `Bearer ${SUPABASE_KEY}`,
+        "Content-Type": "application/json"
+    };
+
+    // --- FUNÇÃO PARA SALVAR OU ATUALIZAR NO BANCO DE DADOS (UPSERT) ---
+    async function salvarCliente() {
+        const nome = document.getElementById('cad_nome').value.trim();
+        const telefone = document.getElementById('cad_telefone').value.trim().replace(/\D/g, ''); 
+        const endereco = document.getElementById('cad_endereco').value.trim();
+
+        if (!telefone || !nome || !endereco) {
+            alert("Por favor, preencha todos os campos para cadastrar.");
+            return;
+        }
+
+        try {
+            const response = await fetch(`${SUPABASE_URL}/rest/v1/clientes`, {
+                method: "POST",
+                headers: {
+                    ...headers,
+                    // Garante que se o telefone já existir, o cadastro será atualizado sem dar erro
+                    "Prefer": "resolution=merge-duplicates" 
+                },
+                body: JSON.stringify({ nome, telefone, endereco })
+            });
+
+            if (response.ok) {
+                alert("Cliente cadastrado/atualizado com sucesso no Banco!");
+                document.getElementById('cad_nome').value = '';
+                document.getElementById('cad_telefone').value = '';
+                document.getElementById('cad_endereco').value = '';
+            } else {
+                alert("Erro ao salvar no banco. Certifique-se de que o RLS foi desativado no painel do Supabase.");
+            }
+        } catch (error) {
+            console.error("Erro na requisição:", error);
+            alert("Erro ao conectar com o Banco de Dados.");
+        }
+    }
+
+    // --- FUNÇÃO PARA BUSCAR NO BANCO DE DADOS (GET) ---
+    async function buscarCliente() {
+        const telefoneBusca = document.getElementById('busca_telefone').value.trim().replace(/\D/g, '');
+        
+        if (!telefoneBusca) {
+            alert("Digite um telefone para buscar.");
+            return;
+        }
+
+        try {
+            const response = await fetch(`${SUPABASE_URL}/rest/v1/clientes?telefone=eq.${telefoneBusca}`, {
+                method: "GET",
+                headers: {
+                    "apikey": SUPABASE_KEY,
+                    "Authorization": `Bearer ${SUPABASE_KEY}`
+                }
+            });
+
+            const dados = await response.json();
+
+            if (dados && dados.length > 0) {
+                const cliente = dados[0];
+                // Preenche o pedido automaticamente com os dados do banco
+                document.getElementById('nome').value = cliente.nome;
+                document.getElementById('endereco').value = cliente.endereco;
+                document.getElementById('telefone').value = formatarTelefone(cliente.telefone);
+                alert("Cliente encontrado e carregado!");
+            } else {
+                alert("Cliente não encontrado no Banco de Dados.");
+            }
+        } catch (error) {
+            console.error("Erro na busca:", error);
+            alert("Erro ao buscar dados.");
+        }
+    }
+
+    function formatarTelefone(num) {
+        if (num.length === 11) {
+            return `(${num.substring(0,2)}) ${num.substring(2,7)}-${num.substring(7)}`;
+        } else if (num.length === 10) {
+            return `(${num.substring(0,2)}) ${num.substring(2,6)}-${num.substring(6)}`;
+        }
+        return num;
+    }
+
+    function limparFormularioPedido() {
+        document.getElementById('busca_telefone').value = '';
+        document.getElementById('nome').value = '';
+        document.getElementById('endereco').value = '';
+        document.getElementById('telefone').value = '';
+        document.getElementById('valor').value = '';
+        document.getElementById('chk_pago').checked = false;
+        document.getElementById('chk_cobrar').checked = false;
+    }
+
+    // --- LÓGICA DE IMPRESSÃO ---
+    function imprimir() {
+        const nome = document.getElementById('nome').value.trim();
+        const endereco = document.getElementById('endereco').value.trim();
+        const telefone = document.getElementById('telefone').value.trim();
+        const valor = document.getElementById('valor').value.trim();
+        
+        const estaPago = document.getElementById('chk_pago').checked;
+        const deveCobrar = document.getElementById('chk_cobrar').checked;
+
+        if(!nome || !valor) {
+            alert("Por favor, preencha pelo menos o Nome e o Valor.");
+            return;
+        }
+
+        document.getElementById('p_nome').textContent = nome.toUpperCase();
+        document.getElementById('p_valor').textContent = valor;
+
+        const divEndereco = document.getElementById('div_p_endereco');
+        if (endereco) {
+            divEndereco.style.display = 'block';
+            document.getElementById('p_endereco').textContent = endereco.toUpperCase();
+        } else {
+            divEndereco.style.display = 'none';
+        }
+
+        const divTelefone = document.getElementById('div_p_telefone');
+        if (telefone) {
+            divTelefone.style.display = 'block';
+            document.getElementById('p_telefone').textContent = telefone;
+        } else {
+            divTelefone.style.display = 'none';
+        }
+
+        const statusBox = document.getElementById('p_status_box');
+        const statusTexto = document.getElementById('p_status_texto');
+
+        if(estaPago) {
+            statusBox.style.display = 'block';
+            statusTexto.textContent = "PEDIDO PAGO";
+        } else if(deveCobrar) {
+            statusBox.style.display = 'block';
+            statusTexto.textContent = "COBRAR NO LOCAL";
+        } else {
+            statusBox.style.display = 'none';
+        }
+
+        window.print();
+    }
+</script>
+</body>
+</html>
