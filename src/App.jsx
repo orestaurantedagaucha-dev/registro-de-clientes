@@ -1,7 +1,10 @@
 import { useState, useEffect } from 'react'
+import { Routes, Route, Navigate } from 'react-router-dom'
 import { supabase } from './supabase'
 import Login from './pages/Login'
 import Principal from './pages/Principal'
+import ClientesLista from './pages/ClientesLista'
+import ResetPassword from './pages/ResetPassword'
 
 function App() {
   const [session, setSession] = useState(null)
@@ -19,10 +22,6 @@ function App() {
 
     return () => subscription.unsubscribe()
   }, [])
-
-  const handleLogin = () => {
-    // onLogin callback - session is already set by onAuthStateChange
-  }
 
   const handleLogout = async () => {
     await supabase.auth.signOut()
@@ -52,10 +51,22 @@ function App() {
   }
 
   if (!session) {
-    return <Login onLogin={handleLogin} />
+    return (
+      <Routes>
+        <Route path="/reset-password" element={<ResetPassword />} />
+        <Route path="*" element={<Login />} />
+      </Routes>
+    )
   }
 
-  return <Principal onLogout={handleLogout} />
+  return (
+    <Routes>
+      <Route path="/" element={<Principal onLogout={handleLogout} />} />
+      <Route path="/clientes" element={<ClientesLista />} />
+      <Route path="/reset-password" element={<ResetPassword />} />
+      <Route path="*" element={<Navigate to="/" replace />} />
+    </Routes>
+  )
 }
 
 export default App

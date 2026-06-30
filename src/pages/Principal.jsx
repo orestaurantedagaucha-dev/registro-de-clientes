@@ -1,7 +1,9 @@
 import { useState, useEffect } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { supabase } from '../supabase'
 
 export default function Principal({ onLogout }) {
+  const navigate = useNavigate()
   const [nome, setNome] = useState('')
   const [endereco, setEndereco] = useState('')
   const [telefone, setTelefone] = useState('')
@@ -39,13 +41,35 @@ export default function Principal({ onLogout }) {
     setMensagem('')
 
     try {
-      const { error } = await supabase
+      // Verificar se o telefone já existe
+      const { data: existente } = await supabase
         .from('clientes')
-        .upsert({ nome: nomeLimpo, telefone: telefoneLimpo, endereco: enderecoLimpo }, {
-          onConflict: 'telefone'
-        })
+        .select('id, nome')
+        .eq('telefone', telefoneLimpo)
+        .maybeSingle()
 
-      if (error) throw error
+      if (existente) {
+        if (existente.nome !== nomeLimpo) {
+          setMensagem(`Telefone já cadastrado para "${existente.nome}". Use outro telefone ou atualize o cliente existente.`)
+          setLoading(false)
+          return
+        }
+
+        // Já existe com o mesmo nome → atualizar sem alterar created_at
+        const { error } = await supabase
+          .from('clientes')
+          .update({ nome: nomeLimpo, endereco: enderecoLimpo })
+          .eq('id', existente.id)
+
+        if (error) throw error
+      } else {
+        // Novo cliente → inserir com data de cadastro
+        const { error } = await supabase
+          .from('clientes')
+          .insert({ nome: nomeLimpo, telefone: telefoneLimpo, endereco: enderecoLimpo, created_at: new Date().toISOString() })
+
+        if (error) throw error
+      }
 
       setMensagem('Cliente cadastrado/atualizado com sucesso!')
       setCadNome('')
@@ -53,7 +77,7 @@ export default function Principal({ onLogout }) {
       setCadEndereco('')
     } catch (error) {
       console.error('Erro ao salvar:', error)
-      setMensagem('Erro ao salvar no banco. Verifique se o RLS está configurado.')
+      setMensagem('Erro ao salvar no banco.')
     } finally {
       setLoading(false)
     }
@@ -192,6 +216,23 @@ export default function Principal({ onLogout }) {
             <h2 style={{ color: '#333', margin: 0, borderBottom: '2px solid #000', paddingBottom: '10px' }}>
               Clientes
             </h2>
+          <div style={{ display: 'flex', gap: '8px' }}>
+            <button
+              onClick={() => navigate('/clientes')}
+              style={{
+                background: '#007bff',
+                color: '#fff',
+                border: 'none',
+                padding: '6px 12px',
+                borderRadius: '6px',
+                cursor: 'pointer',
+                fontSize: '12px',
+                fontWeight: 'bold',
+                width: 'auto'
+              }}
+            >
+              GERENCIAR CLIENTES
+            </button>
             <button
               onClick={onLogout}
               style={{
@@ -208,6 +249,7 @@ export default function Principal({ onLogout }) {
             >
               Sair
             </button>
+          </div>
           </div>
 
           <h3 style={{ color: '#555', marginTop: 0, marginBottom: '15px', borderBottom: '1px solid #ccc', paddingBottom: '5px' }}>

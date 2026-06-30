@@ -1,12 +1,16 @@
 import { useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { supabase } from '../supabase'
 
-export default function Login({ onLogin }) {
+export default function Login() {
+  const navigate = useNavigate()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [isSignUp, setIsSignUp] = useState(false)
+  const [forgotPassword, setForgotPassword] = useState(false)
+  const [resetSent, setResetSent] = useState(false)
 
   const handleSubmit = async (e) => {
     e.preventDefault()
@@ -14,7 +18,13 @@ export default function Login({ onLogin }) {
     setError('')
 
     try {
-      if (isSignUp) {
+      if (forgotPassword) {
+        const { error } = await supabase.auth.resetPasswordForEmail(email, {
+          redirectTo: `${window.location.origin}/reset-password`,
+        })
+        if (error) throw error
+        setResetSent(true)
+      } else if (isSignUp) {
         const { error } = await supabase.auth.signUp({
           email,
           password,
@@ -27,13 +37,19 @@ export default function Login({ onLogin }) {
           password,
         })
         if (error) throw error
-        onLogin()
+        navigate('/')
       }
     } catch (err) {
       setError(err.message)
     } finally {
       setLoading(false)
     }
+  }
+
+  const toggleForgotPassword = () => {
+    setForgotPassword(!forgotPassword)
+    setError('')
+    setResetSent(false)
   }
 
   return (
@@ -60,7 +76,7 @@ export default function Login({ onLogin }) {
           borderBottom: '2px solid #000',
           paddingBottom: '10px'
         }}>
-          {isSignUp ? 'Criar Conta' : 'Login'}
+          {forgotPassword ? 'Recuperar Senha' : (isSignUp ? 'Criar Conta' : 'Login')}
         </h2>
 
         {error && (
@@ -76,80 +92,100 @@ export default function Login({ onLogin }) {
           </div>
         )}
 
-        <form onSubmit={handleSubmit}>
-          <div style={{ marginBottom: '15px' }}>
-            <label style={{
-              display: 'block',
-              marginBottom: '5px',
-              fontWeight: 'bold',
-              color: '#555',
-              fontSize: '0.9em'
-            }}>
-              Email:
-            </label>
-            <input
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              required
+        {resetSent ? (
+          <div style={{
+            background: '#d4edda',
+            color: '#155724',
+            padding: '20px',
+            borderRadius: '6px',
+            fontSize: '14px',
+            textAlign: 'center'
+          }}>
+            <p style={{ fontWeight: 'bold', fontSize: '16px', margin: '0 0 10px 0' }}>
+              Email enviado!
+            </p>
+            <p style={{ margin: 0 }}>
+              Verifique sua caixa de entrada e siga as instruções para redefinir sua senha.
+            </p>
+          </div>
+        ) : (
+          <form onSubmit={handleSubmit}>
+            <div style={{ marginBottom: forgotPassword ? '20px' : '15px' }}>
+              <label style={{
+                display: 'block',
+                marginBottom: '5px',
+                fontWeight: 'bold',
+                color: '#555',
+                fontSize: '0.9em'
+              }}>
+                Email:
+              </label>
+              <input
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                required
+                style={{
+                  width: '100%',
+                  padding: '10px',
+                  border: '1px solid #ccc',
+                  borderRadius: '6px',
+                  fontSize: '15px',
+                  boxSizing: 'border-box'
+                }}
+                placeholder="seu@email.com"
+              />
+            </div>
+
+            {!forgotPassword && (
+              <div style={{ marginBottom: '20px' }}>
+                <label style={{
+                  display: 'block',
+                  marginBottom: '5px',
+                  fontWeight: 'bold',
+                  color: '#555',
+                  fontSize: '0.9em'
+                }}>
+                  Senha:
+                </label>
+                <input
+                  type="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  required
+                  style={{
+                    width: '100%',
+                    padding: '10px',
+                    border: '1px solid #ccc',
+                    borderRadius: '6px',
+                    fontSize: '15px',
+                    boxSizing: 'border-box'
+                  }}
+                  placeholder="******"
+                />
+              </div>
+            )}
+
+            <button
+              type="submit"
+              disabled={loading}
               style={{
                 width: '100%',
-                padding: '10px',
-                border: '1px solid #ccc',
+                padding: '12px',
+                background: loading ? '#6c757d' : '#28a745',
+                color: '#fff',
+                border: 'none',
                 borderRadius: '6px',
-                fontSize: '15px',
-                boxSizing: 'border-box'
+                cursor: loading ? 'not-allowed' : 'pointer',
+                fontWeight: 'bold',
+                fontSize: '16px',
+                transition: 'background 0.3s'
               }}
-              placeholder="seu@email.com"
-            />
-          </div>
-
-          <div style={{ marginBottom: '20px' }}>
-            <label style={{
-              display: 'block',
-              marginBottom: '5px',
-              fontWeight: 'bold',
-              color: '#555',
-              fontSize: '0.9em'
-            }}>
-              Senha:
-            </label>
-            <input
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              required
-              style={{
-                width: '100%',
-                padding: '10px',
-                border: '1px solid #ccc',
-                borderRadius: '6px',
-                fontSize: '15px',
-                boxSizing: 'border-box'
-              }}
-              placeholder="******"
-            />
-          </div>
-
-          <button
-            type="submit"
-            disabled={loading}
-            style={{
-              width: '100%',
-              padding: '12px',
-              background: loading ? '#6c757d' : '#28a745',
-              color: '#fff',
-              border: 'none',
-              borderRadius: '6px',
-              cursor: loading ? 'not-allowed' : 'pointer',
-              fontWeight: 'bold',
-              fontSize: '16px',
-              transition: 'background 0.3s'
-            }}
-          >
-            {loading ? 'Carregando...' : (isSignUp ? 'CADASTRAR' : 'ENTRAR')}
-          </button>
-        </form>
+            >
+              {loading ? 'Carregando...' : (forgotPassword ? 'ENVIAR EMAIL' : (isSignUp ? 'CADASTRAR' : 'ENTRAR'))}
+            </button>
+          </form>
+        )}
 
         <div style={{
           textAlign: 'center',
@@ -157,26 +193,67 @@ export default function Login({ onLogin }) {
           fontSize: '14px',
           color: '#555'
         }}>
-          {isSignUp ? 'Já tem conta?' : 'Não tem conta?'}
-          <button
-            onClick={() => {
-              setIsSignUp(!isSignUp)
-              setError('')
-            }}
-            style={{
-              background: 'none',
-              border: 'none',
-              color: '#007bff',
-              cursor: 'pointer',
-              textDecoration: 'underline',
-              fontSize: '14px',
-              padding: '0',
-              width: 'auto',
-              marginLeft: '5px'
-            }}
-          >
-            {isSignUp ? 'Fazer Login' : 'Criar conta'}
-          </button>
+          {forgotPassword ? (
+            <button
+              onClick={toggleForgotPassword}
+              style={{
+                background: 'none',
+                border: 'none',
+                color: '#007bff',
+                cursor: 'pointer',
+                textDecoration: 'underline',
+                fontSize: '14px',
+                padding: '0',
+                width: 'auto'
+              }}
+            >
+              Voltar ao Login
+            </button>
+          ) : (
+            <>
+              {!isSignUp && (
+                <div style={{ marginBottom: '10px' }}>
+                  <button
+                    onClick={toggleForgotPassword}
+                    style={{
+                      background: 'none',
+                      border: 'none',
+                      color: '#6c757d',
+                      cursor: 'pointer',
+                      textDecoration: 'underline',
+                      fontSize: '13px',
+                      padding: '0',
+                      width: 'auto'
+                    }}
+                  >
+                    Esqueci minha senha
+                  </button>
+                </div>
+              )}
+              <div>
+                {isSignUp ? 'Já tem conta?' : 'Não tem conta?'}
+                <button
+                  onClick={() => {
+                    setIsSignUp(!isSignUp)
+                    setError('')
+                  }}
+                  style={{
+                    background: 'none',
+                    border: 'none',
+                    color: '#007bff',
+                    cursor: 'pointer',
+                    textDecoration: 'underline',
+                    fontSize: '14px',
+                    padding: '0',
+                    width: 'auto',
+                    marginLeft: '5px'
+                  }}
+                >
+                  {isSignUp ? 'Fazer Login' : 'Criar conta'}
+                </button>
+              </div>
+            </>
+          )}
         </div>
       </div>
     </div>
