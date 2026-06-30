@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { supabase } from '../supabase'
 import { useNavigate } from 'react-router-dom'
 
@@ -10,19 +10,44 @@ export default function ResetPassword() {
   const [error, setError] = useState('')
   const [success, setSuccess] = useState(false)
   const [verifying, setVerifying] = useState(true)
+  const retryCount = useRef(0)
 
   useEffect(() => {
-    // O Supabase já lida com o token de recovery automaticamente
-    // via onAuthStateChange, então só precisamos verificar se
-    // a sessão foi estabelecida
+    let mounted = true
+    let subscription
+
     const checkSession = async () => {
       const { data: { session } } = await supabase.auth.getSession()
-      if (!session) {
-        setError('Link inválido ou expirado. Solicite um novo reset de senha.')
+      if (mounted) {
+        if (session) {
+          setVerifying(false)
+        } else if (retryCount.current < 10) {
+          // Tenta novamente a cada 500ms (até 5s) enquanto o Supabase processa o token
+          retryCount.current += 1
+          setTimeout(checkSession, 500)
+        } else {
+          setError('Link inválido ou expirado. Solicite um novo reset de senha.')
+          setVerifying(false)
+        }
       }
-      setVerifying(false)
     }
+
+    // Escuta mudanças na autenticação (captura o evento de recovery)
+    const { data: { subscription: authSubscription } } = supabase.auth.onAuthStateChange((event) => {
+      if (event === 'SIGNED_IN' || event === 'USER_UPDATED') {
+        if (mounted) {
+          setVerifying(false)
+        }
+      }
+    })
+    subscription = authSubscription
+
     checkSession()
+
+    return () => {
+      mounted = false
+      if (subscription) subscription.unsubscribe()
+    }
   }, [])
 
   const handleResetPassword = async (e) => {
@@ -112,31 +137,28 @@ export default function ResetPassword() {
           <div style={{
             background: '#f8d7da',
             color: '#721c24',
-            padding: '10px',
+            padding: '20px',
             borderRadius: '6px',
             marginBottom: '20px',
-            fontSize: '14px'
+            fontSize: '14px',
+            textAlign: 'center'
           }}>
-            {error}
-            {error.includes('inválido') && (
-              <div style={{ marginTop: '10px', textAlign: 'center' }}>
-                <button
-                  onClick={() => navigate('/')}
-                  style={{
-                    background: '#007bff',
-                    color: '#fff',
-                    border: 'none',
-                    padding: '8px 16px',
-                    borderRadius: '6px',
-                    cursor: 'pointer',
-                    fontWeight: 'bold',
-                    fontSize: '14px'
-                  }}
-                >
-                  VOLTAR AO LOGIN
-                </button>
-              </div>
-            )}
+            <p style={{ margin: '0 0 10px 0' }}>{error}</p>
+            <button
+              onClick={() => navigate('/')}
+              style={{
+                background: '#007bff',
+                color: '#fff',
+                border: 'none',
+                padding: '8px 16px',
+                borderRadius: '6px',
+                cursor: 'pointer',
+                fontWeight: 'bold',
+                fontSize: '14px'
+              }}
+            >
+              VOLTAR AO LOGIN
+            </button>
           </div>
         )}
 
@@ -157,82 +179,84 @@ export default function ResetPassword() {
             </p>
           </div>
         ) : (
-          <form onSubmit={handleResetPassword}>
-            <div style={{ marginBottom: '15px' }}>
-              <label style={{
-                display: 'block',
-                marginBottom: '5px',
-                fontWeight: 'bold',
-                color: '#555',
-                fontSize: '0.9em'
-              }}>
-                Nova Senha:
-              </label>
-              <input
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                required
-                minLength={6}
+          !error && (
+            <form onSubmit={handleResetPassword}>
+              <div style={{ marginBottom: '15px' }}>
+                <label style={{
+                  display: 'block',
+                  marginBottom: '5px',
+                  fontWeight: 'bold',
+                  color: '#555',
+                  fontSize: '0.9em'
+                }}>
+                  Nova Senha:
+                </label>
+                <input
+                  type="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  required
+                  minLength={6}
+                  style={{
+                    width: '100%',
+                    padding: '10px',
+                    border: '1px solid #ccc',
+                    borderRadius: '6px',
+                    fontSize: '15px',
+                    boxSizing: 'border-box'
+                  }}
+                  placeholder="Mínimo 6 caracteres"
+                />
+              </div>
+
+              <div style={{ marginBottom: '20px' }}>
+                <label style={{
+                  display: 'block',
+                  marginBottom: '5px',
+                  fontWeight: 'bold',
+                  color: '#555',
+                  fontSize: '0.9em'
+                }}>
+                  Confirmar Nova Senha:
+                </label>
+                <input
+                  type="password"
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  required
+                  minLength={6}
+                  style={{
+                    width: '100%',
+                    padding: '10px',
+                    border: '1px solid #ccc',
+                    borderRadius: '6px',
+                    fontSize: '15px',
+                    boxSizing: 'border-box'
+                  }}
+                  placeholder="Repita a nova senha"
+                />
+              </div>
+
+              <button
+                type="submit"
+                disabled={loading}
                 style={{
                   width: '100%',
-                  padding: '10px',
-                  border: '1px solid #ccc',
+                  padding: '12px',
+                  background: loading ? '#6c757d' : '#28a745',
+                  color: '#fff',
+                  border: 'none',
                   borderRadius: '6px',
-                  fontSize: '15px',
-                  boxSizing: 'border-box'
+                  cursor: loading ? 'not-allowed' : 'pointer',
+                  fontWeight: 'bold',
+                  fontSize: '16px',
+                  transition: 'background 0.3s'
                 }}
-                placeholder="Mínimo 6 caracteres"
-              />
-            </div>
-
-            <div style={{ marginBottom: '20px' }}>
-              <label style={{
-                display: 'block',
-                marginBottom: '5px',
-                fontWeight: 'bold',
-                color: '#555',
-                fontSize: '0.9em'
-              }}>
-                Confirmar Nova Senha:
-              </label>
-              <input
-                type="password"
-                value={confirmPassword}
-                onChange={(e) => setConfirmPassword(e.target.value)}
-                required
-                minLength={6}
-                style={{
-                  width: '100%',
-                  padding: '10px',
-                  border: '1px solid #ccc',
-                  borderRadius: '6px',
-                  fontSize: '15px',
-                  boxSizing: 'border-box'
-                }}
-                placeholder="Repita a nova senha"
-              />
-            </div>
-
-            <button
-              type="submit"
-              disabled={loading}
-              style={{
-                width: '100%',
-                padding: '12px',
-                background: loading ? '#6c757d' : '#28a745',
-                color: '#fff',
-                border: 'none',
-                borderRadius: '6px',
-                cursor: loading ? 'not-allowed' : 'pointer',
-                fontWeight: 'bold',
-                fontSize: '16px',
-                transition: 'background 0.3s'
-              }}
-            >
-              {loading ? 'REDEFININDO...' : 'REDEFINIR SENHA'}
-            </button>
-          </form>
+              >
+                {loading ? 'REDEFININDO...' : 'REDEFINIR SENHA'}
+              </button>
+            </form>
+          )
         )}
       </div>
     </div>
