@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../supabase'
+import Mensagem from '../components/Mensagem'
 
 export default function Principal({ onLogout }) {
   const navigate = useNavigate()
@@ -16,6 +17,7 @@ export default function Principal({ onLogout }) {
   const [cadEndereco, setCadEndereco] = useState('')
   const [loading, setLoading] = useState(false)
   const [mensagem, setMensagem] = useState('')
+  const [tipoMensagem, setTipoMensagem] = useState('')
 
   const formatarTelefone = (num) => {
     const clean = num.replace(/\D/g, '')
@@ -34,6 +36,7 @@ export default function Principal({ onLogout }) {
 
     if (!telefoneLimpo || !nomeLimpo || !enderecoLimpo) {
       setMensagem('Por favor, preencha todos os campos para cadastrar.')
+      setTipoMensagem('warning')
       return
     }
 
@@ -51,6 +54,7 @@ export default function Principal({ onLogout }) {
       if (existente) {
         if (existente.nome !== nomeLimpo) {
           setMensagem(`Telefone já cadastrado para "${existente.nome}". Use outro telefone ou atualize o cliente existente.`)
+          setTipoMensagem('warning')
           setLoading(false)
           return
         }
@@ -72,12 +76,14 @@ export default function Principal({ onLogout }) {
       }
 
       setMensagem('Cliente cadastrado/atualizado com sucesso!')
+      setTipoMensagem('success')
       setCadNome('')
       setCadTelefone('')
       setCadEndereco('')
     } catch (error) {
       console.error('Erro ao salvar:', error)
       setMensagem('Erro ao salvar no banco.')
+      setTipoMensagem('error')
     } finally {
       setLoading(false)
     }
@@ -88,6 +94,7 @@ export default function Principal({ onLogout }) {
 
     if (!telefoneBusca) {
       setMensagem('Digite um telefone para buscar.')
+      setTipoMensagem('warning')
       return
     }
 
@@ -103,15 +110,18 @@ export default function Principal({ onLogout }) {
 
       if (error || !data) {
         setMensagem('Cliente não encontrado no Banco de Dados.')
+        setTipoMensagem('warning')
       } else {
         setNome(data.nome)
         setEndereco(data.endereco)
         setTelefone(formatarTelefone(data.telefone))
         setMensagem('Cliente encontrado e carregado!')
+        setTipoMensagem('success')
       }
     } catch (error) {
       console.error('Erro na busca:', error)
       setMensagem('Erro ao buscar dados.')
+      setTipoMensagem('error')
     } finally {
       setLoading(false)
     }
@@ -125,69 +135,114 @@ export default function Principal({ onLogout }) {
     setEstaPago(false)
     setDeveCobrar(false)
     setMensagem('')
+    setTipoMensagem('')
   }
 
-  const imprimir = () => {
-    if (!nome || !valor) {
-      setMensagem('Por favor, preencha pelo menos o Nome e o Valor.')
+  const imprimir = async () => {
+    if (!nome) {
+      setMensagem('Por favor, preencha pelo menos o Nome')
+      setTipoMensagem('warning')
+      return
+    }
+    
+    if( !valor ) {
+      setMensagem('Por favor, informe o valor total do pedido.')
+      setTipoMensagem('warning')
+      return
+    }
+    const valorNumerico = parseFloat(valor.replace(',', '.'))
+    if (isNaN(valorNumerico) || valorNumerico <= 0) {
+      setMensagem('Por favor, informe um valor total válido (maior que zero).')
+      setTipoMensagem('warning')
       return
     }
 
-    const valorFormatado = valor.replace('.', ',')
+    if (!estaPago && !deveCobrar) {
+      setMensagem('Por favor, selecione o status do pagamento.')
+      setTipoMensagem('warning')
+      return
+    }
 
-    const cupom = `
-      <div style="text-align: center; font-weight: bold; margin-bottom: 15px; border-bottom: 1px solid #000; padding-bottom: 5px; font-size: 14pt;">
-        COMPROVANTE DE PEDIDO
-      </div>
+    setLoading(true)
+    setMensagem('')
 
-      ${estaPago ? `<div style="font-size: 16pt; font-weight: 900; border: 2px solid #000; text-align: center; padding: 5px; margin: 10px 0; text-transform: uppercase;">PEDIDO PAGO</div>` : ''}
-      ${deveCobrar ? `<div style="font-size: 16pt; font-weight: 900; border: 2px solid #000; text-align: center; padding: 5px; margin: 10px 0; text-transform: uppercase;">COBRAR NO LOCAL</div>` : ''}
+    try {
+      // Salvar cupom no banco de dados
+      const { error } = await supabase
+        .from('cupom')
+        .insert({
+          cliente_nome: nome.trim(),
+          cliente_endereco: endereco.trim() || null,
+          cliente_telefone: telefone.replace(/\D/g, '') || null,
+          valor: valorNumerico,
+          esta_pago: estaPago,
+          deve_cobrar: deveCobrar
+        })
 
-      <div style="margin-bottom: 10px; page-break-inside: avoid;">
-        <span style="font-size: 14pt; font-weight: normal; display: block; text-transform: uppercase;">Cliente:</span>
-        <span style="font-size: 14pt; font-weight: bold; display: block; white-space: pre-wrap; word-wrap: break-word;">${nome.toUpperCase()}</span>
-      </div>
+      if (error) throw error
 
-      ${endereco ? `
-      <div style="margin-bottom: 10px; page-break-inside: avoid;">
-        <span style="font-size: 14pt; font-weight: normal; display: block; text-transform: uppercase;">Endereço:</span>
-        <span style="font-size: 14pt; font-weight: bold; display: block; white-space: pre-wrap; word-wrap: break-word;">${endereco.toUpperCase()}</span>
-      </div>
-      ` : ''}
+      const valorFormatado = valor.replace('.', ',')
 
-      ${telefone ? `
-      <div style="margin-bottom: 10px; page-break-inside: avoid;">
-        <span style="font-size: 14pt; font-weight: normal; display: block; text-transform: uppercase;">Telefone:</span>
-        <span style="font-size: 14pt; font-weight: bold; display: block;">${telefone}</span>
-      </div>
-      ` : ''}
+      const cupom = `
+        <div style="text-align: center; font-weight: bold; margin-bottom: 15px; border-bottom: 1px solid #000; padding-bottom: 5px; font-size: 14pt;">
+          COMPROVANTE DE PEDIDO
+        </div>
 
-      <div style="margin-top: 15px; padding-top: 10px; border-top: 1px dashed #000; text-align: right; page-break-inside: avoid;">
-        <span style="font-size: 14pt; font-weight: normal; display: block; text-transform: uppercase;">TOTAL:</span>
-        <span style="font-size: 18pt; font-weight: 900;">R$ ${valorFormatado}</span>
-      </div>
+        ${estaPago ? `<div style="font-size: 16pt; font-weight: 900; border: 2px solid #000; text-align: center; padding: 5px; margin: 10px 0; text-transform: uppercase;">PEDIDO PAGO</div>` : ''}
+        ${deveCobrar ? `<div style="font-size: 16pt; font-weight: 900; border: 2px solid #000; text-align: center; padding: 5px; margin: 10px 0; text-transform: uppercase;">COBRAR NO LOCAL</div>` : ''}
 
-      <div style="height: 30px; display: block;"></div>
-      <div style="text-align: center; font-size: 10pt; font-weight: bold;">*** Fim do Cupom ***</div>
-      <div style="height: 30px; display: block;"></div>
-    `
+        <div style="margin-bottom: 10px; page-break-inside: avoid;">
+          <span style="font-size: 14pt; font-weight: normal; display: block; text-transform: uppercase;">Cliente:</span>
+          <span style="font-size: 14pt; font-weight: bold; display: block; white-space: pre-wrap; word-wrap: break-word;">${nome.toUpperCase()}</span>
+        </div>
 
-    const win = window.open('', '_blank', 'width=400,height=600')
-    win.document.write(`
-      <!DOCTYPE html>
-      <html>
-      <head>
-        <title>Cupom</title>
-        <style>
-          @page { size: 80mm auto; margin: 0; }
-          body { background: #fff; margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
-        </style>
-      </head>
-      <body>${cupom}</body>
-      </html>
-    `)
-    win.document.close()
-    win.print()
+        ${endereco ? `
+        <div style="margin-bottom: 10px; page-break-inside: avoid;">
+          <span style="font-size: 14pt; font-weight: normal; display: block; text-transform: uppercase;">Endereço:</span>
+          <span style="font-size: 14pt; font-weight: bold; display: block; white-space: pre-wrap; word-wrap: break-word;">${endereco.toUpperCase()}</span>
+        </div>
+        ` : ''}
+
+        ${telefone ? `
+        <div style="margin-bottom: 10px; page-break-inside: avoid;">
+          <span style="font-size: 14pt; font-weight: normal; display: block; text-transform: uppercase;">Telefone:</span>
+          <span style="font-size: 14pt; font-weight: bold; display: block;">${telefone}</span>
+        </div>
+        ` : ''}
+
+        <div style="margin-top: 15px; padding-top: 10px; border-top: 1px dashed #000; text-align: right; page-break-inside: avoid;">
+          <span style="font-size: 14pt; font-weight: normal; display: block; text-transform: uppercase;">TOTAL:</span>
+          <span style="font-size: 18pt; font-weight: 900;">R$ ${valorFormatado}</span>
+        </div>
+
+        <div style="height: 30px; display: block;"></div>
+        <div style="text-align: center; font-size: 10pt; font-weight: bold;">*** Fim do Cupom ***</div>
+        <div style="height: 30px; display: block;"></div>
+      `
+
+      const win = window.open('', '_blank', 'width=400,height=600')
+      win.document.write(`
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <title>Cupom</title>
+          <style>
+            @page { size: 80mm auto; margin: 0; }
+            body { background: #fff; margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+          </style>
+        </head>
+        <body>${cupom}</body>
+        </html>
+      `)
+      win.document.close()
+      win.print()
+    } catch (error) {
+      console.error('Erro ao salvar cupom:', error)
+      setMensagem('Erro ao salvar cupom no banco de dados.')
+      setTipoMensagem('error')
+    } finally {
+      setLoading(false)
+    }
   }
 
   return (
@@ -536,38 +591,11 @@ export default function Principal({ onLogout }) {
         </div>
       </div>
 
-      {mensagem && (
-        <div style={{
-          position: 'fixed',
-          top: '20px',
-          right: '20px',
-          background: mensagem.includes('Erro') ? '#f8d7da' : '#d4edda',
-          color: mensagem.includes('Erro') ? '#721c24' : '#155724',
-          padding: '15px 20px',
-          borderRadius: '6px',
-          boxShadow: '0 4px 15px rgba(0,0,0,0.1)',
-          maxWidth: '400px',
-          zIndex: 1000,
-          fontSize: '14px'
-        }}>
-          {mensagem}
-          <button
-            onClick={() => setMensagem('')}
-            style={{
-              background: 'none',
-              border: 'none',
-              color: 'inherit',
-              cursor: 'pointer',
-              float: 'right',
-              fontSize: '18px',
-              padding: 0,
-              marginLeft: '10px'
-            }}
-          >
-            ×
-          </button>
-        </div>
-      )}
+      <Mensagem
+        mensagem={mensagem}
+        tipo={tipoMensagem}
+        onClose={() => setMensagem('')}
+      />
     </div>
   )
 }
